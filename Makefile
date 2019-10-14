@@ -42,6 +42,18 @@ clear:
 # Blow it all away and start again. First start the stack with `make up`
 load-from-scratch: initdb download-pathrows-file index
 
+metadata-usgs-c2:
+	docker-compose exec jupyter \
+		datacube metadata add /opt/odc/scripts/config/products/eo3_landsat_ard.odc-type.yaml
+
+product-usgs-c2:
+	docker-compose exec jupyter \
+		datacube product add /opt/odc/scripts/config/products/usgs-level2-collection2-sample.odc-product.yaml
+
+index-usgs-c2-one:
+	docker-compose exec jupyter \
+		datacube dataset add s3://deafrica-collection2-testing/nigeria/usgs_ls8c_level2_2/188/053/2018/05/01/usgs_ls8c_level2_2-0-20190821_188053_2018-05-01.odc-metadata.yaml
+
 # Update S3 template (this is owned by FrontierSI)
 update-s3:
 	aws s3 cp opendatacube-test.yml s3://cubeinabox/ --acl public-read

@@ -1,0 +1,4 @@
+[submodule "scripts/config"]
+	path = scripts/config
+	url = git@github.com:digitalearthafrica/config.git
+	branch = usgs-collection2
