@@ -54,6 +54,27 @@ index-usgs-c2-one:
 	docker-compose exec jupyter \
 		datacube dataset add s3://deafrica-collection2-testing/nigeria/usgs_ls8c_level2_2/188/053/2018/05/01/usgs_ls8c_level2_2-0-20190821_188053_2018-05-01.odc-metadata.yaml
 
+product-alos:
+	docker-compose exec jupyter \
+		datacube product add https://raw.githubusercontent.com/digitalearthafrica/config/master/products/alos_palsar.yaml
+
+index-alos-one:
+	docker-compose exec jupyter \
+		datacube dataset add s3://test-results-deafrica-staging-west/alos/2017/N00E030/N00E030_2017.yaml
+
+index-alos-2017:
+	docker-compose exec jupyter \
+		bash -c "aws s3 ls s3://deafrica-data/jaxa/alos_palsar_mosaic/2017/ --recursive \
+			| grep yaml | awk '{print \$$4}' \
+			| xargs -n1 -I {} datacube dataset add s3://deafrica-data/{}"
+
+index-alos-2007:
+	docker-compose exec jupyter \
+		bash -c "aws s3 ls s3://test-results-deafrica-staging-west/alos/2007/ --recursive \
+			| grep yaml | awk '{print \$$4}' \
+			| xargs -n1 -I {} datacube dataset add s3://test-results-deafrica-staging-west/{}"
+
+
 # Update S3 template (this is owned by FrontierSI)
 update-s3:
 	aws s3 cp opendatacube-test.yml s3://cubeinabox/ --acl public-read
