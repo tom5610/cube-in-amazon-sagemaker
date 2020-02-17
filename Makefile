@@ -17,14 +17,12 @@ add-product-definition:
 
 # 3. Index a dataset (just an example, you can change the extents)
 index:
-	# Note that you need environment variables ODC_ACCESS_KEY and ODC_SECRET_KEY set.
-	# These need to be valid AWS keys. KEEP THEM SECRET, KEEP THEM SAFE!
-
+	# 6.350513, -1.341256 - Ghana, y x
 	docker-compose exec jupyter bash -c \
 		"cd /opt/odc/scripts && python3 ./autoIndex.py \
 			--start_date '2019-01-01' \
-			--end_date '2020-01-01' \
-			--extents '146.30,146.83,-43.54,-43.20'"
+			--end_date '2021-01-01' \
+			--extents '-2,-1,6,7'"
 
 # Some extra commands to help in managing things.
 # Rebuild the image
