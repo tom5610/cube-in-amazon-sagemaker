@@ -106,6 +106,9 @@ def absolutify_paths(doc, bucket_name, obj_key):
         band['path'] = get_s3_url(bucket_name, objt_key + '/' + band['path'])
     return doc
 
+def make_stac_metadata_doc(stac_data, bucket_name, object_key):
+    print("make_stac_metadata_doc: NOT IMPLEMENTED")
+
 
 def make_metadata_doc(mtl_data, bucket_name, object_key):
     mtl_product_info = mtl_data['PRODUCT_METADATA']

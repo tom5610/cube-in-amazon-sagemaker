@@ -12,7 +12,7 @@ from botocore import UNSIGNED
 from botocore.config import Config
 
 from ls_public_bucket import (_parse_group, add_dataset, get_s3_url,
-                              make_metadata_doc)
+                              make_metadata_doc, make_stac_metadata_doc)
 from satsearch import Search
 
 STOP_SIGN = "ALL_COMPLETE_END_WORKER"
@@ -23,10 +23,14 @@ logger = logging.getLogger('odcindexer')
 def stac_search(extent, start_date, end_date):
     """ Convert lat, lon to pathrows """
     logger.info("Querying STAC for area: {} and times: {} - {} (UTC)".format(extent, start_date, end_date))
+    # The original URL
+    url = "https://sat-api.developmentseed.org/stac/search"
+    # The URL for Sentinel-2 testing
+    url = "https://jhj4qxmhwb.execute-api.us-west-2.amazonaws.com/v0/search"
     srch = Search(
         bbox=extent,
-        time='{}T00:00:00Z/{}T23:59:59Z'.format(start_date, end_date),
-        url="https://sat-api.developmentseed.org/stac/search"
+        datetime='{}T00:00:00Z/{}T23:59:59Z'.format(start_date, end_date),
+        url=url
     )
     try:
         logger.info("Found {} items".format(srch.found()))
@@ -36,6 +40,26 @@ def stac_search(extent, start_date, end_date):
 
 
 def index_dataset(index, s3, url, parse_only):
+    logger.info("Downloading {}".format(url))
+    bucket_name, key = parse_s3_url(url)
+    obj = s3.Object(bucket_name, key).get()
+    raw = obj['Body'].read()
+    raw_string = raw.decode('utf8')
+    logger.info("Parsing {}".format(key))
+    try:
+        data = make_stac_metadata_doc(raw_string, bucket_name, key)
+    except Exception as e:
+        logger.error("Metadata parsing error: {}; {}".format(e.__class__.__name__, e))
+        return
+    uri = get_s3_url(bucket_name, key)
+    if parse_only:
+        logger.info("Skipping indexing step")
+    else:
+        logger.info("Indexing {}".format(key))
+        add_dataset(data, uri, index, "verify")
+
+
+def index_stac(index, s3, url, parse_only):
     logger.info("Downloading {}".format(url))
     bucket_name, key = parse_s3_url(url)
     obj = s3.Object(bucket_name, key).get()
@@ -63,6 +87,8 @@ def index_datasets(items, parse_only=False):
     for item in items:
         if "MTL" in item.assets:
             index_dataset(idx, s3, item.assets["MTL"]["href"], parse_only)
+        elif "info" in item.assets:
+            index_stac(idx, s3, item.assets["info"]["href"], parse_only)
         else:
             logger.info("Item {} does not have an MTL asset (Sentinel2?) - skipping".format(item))
 
