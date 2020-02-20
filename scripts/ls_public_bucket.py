@@ -4,6 +4,7 @@ import uuid
 from multiprocessing import Manager, Process, cpu_count, current_process
 from queue import Empty
 import os
+import json
 
 import rasterio
 import boto3
@@ -45,6 +46,23 @@ bands_ls7 = [('1', 'blue'),
              ('5', 'swir1'),
              ('7', 'swir2'),
              ('QUALITY', 'quality')]
+
+
+bands_s2 = {
+    "B01": 'coastal_aerosol',
+    "B02": 'blue',
+    "B03": 'green',
+    "B04": 'red',
+    "B05": 'red_edge_1',
+    "B06": 'red_edge_2',
+    "B07": 'red_edge_3',
+    "B08": 'nir_1',
+    "B8A": 'nir_2',
+    "B09": 'water_vapour',
+    "B11": 'swir_1',
+    "B12": 'swir_2',
+    "SCL": 'scl'
+}
 
 
 # STACproduct lookup
@@ -147,21 +165,18 @@ def relativise_path(href):
 
 def get_stac_bands(item):
     bands = {}
+    ignore_bands = ["B10", "AOT", "WVP"]
 
     # TODO: split out grids per band.
     for asset_key in item.assets:
         asset = item.assets[asset_key]
         if 'data' in asset['roles']:
-            bands[asset_key] = {
-                "path": relativise_path(asset['href']),
-                "grid": "default",
-                "band": 1
-            }
-
-    ignore_bands = ["B10", "AOT", "WVP"]
-    for band in ignore_bands:
-        if band in bands:
-            del bands[band]
+            if asset_key not in ignore_bands:
+                # Rename the band to a human-friendly name
+                bands[bands_s2[asset_key]] = {
+                    "path": relativise_path(asset['href']),
+                    # "grid": "default"
+                }
 
     return bands
 
@@ -181,6 +196,7 @@ def make_stac_metadata_doc(item):
     deterministic_uuid = str(odc_uuid("sentinel2_stac_process", "1.0.0", [product_id]))
 
     doc = {
+        '$schema': 'https://schemas.opendatacube.org/dataset',
         'id': deterministic_uuid,
         'crs': "epsg:{}".format(item.properties['proj:epsg']),
         'geometry': item.properties['proj:geometry'],
@@ -190,25 +206,26 @@ def make_stac_metadata_doc(item):
                 'transform': transform
             }
         },
-        'format': {'name': 'GeoTiff'},
-        'processing_level': processing_level,
         'product': {
-            'name': product_type  # This is not right
+            'name': product_type.lower()  # This is not right
         },
-        'product_type': product_type,
         'label': product_id,
         'properties': {
-            'datetime': item.properties['datetime'],
+            'datetime': item.properties['datetime'].replace("000+00:00", "Z"),
+            'odc:processing_time': item.properties['created'],
+            'eo:cloud_cover': item.properties['eo:cloud_cover'],
             'eo:gsd': item.properties['eo:gsd'],
             'eo:instrument': item.properties['instruments'][0],
             'eo:platform': item.properties['platform'],
             'odc:file_format': 'GeoTIFF',
-            'odc:region_code': product_id.split('_')[-2],  # Super dodge NEEDS FIXED
-            'odc:processing_time': item.properties['created']
+            'odc:region_code': product_id.split('_')[-2]  # Super dodge NEEDS FIXED
         },
         'measurements': get_stac_bands(item),
-        'lineage': {'source_datasets': {}},
+        'lineage': {}
     }
+
+    # with open(f'/opt/odc/data/{item}.json', 'w') as outfile:
+    #     json.dump(doc, outfile, indent=4)
 
     return dict(**doc,
                 **eo3_grid_spatial(doc))
