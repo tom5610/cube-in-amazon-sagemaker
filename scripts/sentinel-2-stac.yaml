@@ -1,60 +1,68 @@
-name: S2A_MSIL2A
+name: s2a_msil2a
 description: Sentinel-2A Level 2 COGs
 metadata_type: eo3
 
 metadata:
     product:
-        name: S2A_MSIL2A
+        name: s2a_msil2a
 
 measurements:
-- name: 'B01'
-  aliases: [band_01]
+- name: 'coastal_aerosol'
+  aliases: [band_01, B01]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B02'
+- name: 'blue'
+  aliases: [band_02, B02]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B03'
-  aliases: [band_03]
+- name: 'green'
+  aliases: [band_03, B03]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B04'
+- name: 'red'
+  aliases: [band_04, B04]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B05'
+- name: 'red_edge_1'
+  aliases: [band_05, B05]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B06'
+- name: 'red_edge_2'
+  aliases: [band_06, B06]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B07'
+- name: 'red_edge_3'
+  aliases: [band_07, B07]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B08'
+- name: 'nir_1'
+  aliases: [band_08, B08]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B8A'
+- name: 'nir_2'
+  aliases: [band_8a, B8A]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B09'
+- name: 'water_vapour'
+  aliases: [band_09, B09]
   units: '1'
   dtype: uint16
   nodata: 0
@@ -64,17 +72,20 @@ measurements:
 #   dtype: uint16
 #   nodata: 0
 
-- name: 'B11'
+- name: 'swir_1'
+  aliases: [band_11, B11]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B12'
+- name: 'swir_2'
+  aliases: [band_12, B12]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'SCL'
+- name: 'scl'
+  aliases: [mask, qa]
   units: '1'
   dtype: uint8
   nodata: 0
@@ -97,63 +108,71 @@ measurements:
 
 ---
 
-name: S2B_MSIL2A
+name: s2b_msil2a
 description: Sentinel-2B Level 2 COGs
 metadata_type: eo3
 
 metadata:
     product:
-        name: S2B_MSIL2A
+        name: s2b_msil2a
 
 measurements:
-- name: 'B01'
-  aliases: [band_01]
+- name: 'coastal_aerosol'
+  aliases: [band_01, B01]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B02'
+- name: 'blue'
+  aliases: [band_02, B02]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B03'
-  aliases: [band_03]
+- name: 'green'
+  aliases: [band_03, B03]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B04'
+- name: 'red'
+  aliases: [band_04, B04]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B05'
+- name: 'red_edge_1'
+  aliases: [band_05, B05]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B06'
+- name: 'red_edge_2'
+  aliases: [band_06, B06]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B07'
+- name: 'red_edge_3'
+  aliases: [band_07, B07]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B08'
+- name: 'nir_1'
+  aliases: [band_08, B08]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B8A'
+- name: 'nir_2'
+  aliases: [band_8a, B8A]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B09'
+- name: 'water_vapour'
+  aliases: [band_09, B09]
   units: '1'
   dtype: uint16
   nodata: 0
@@ -163,33 +182,36 @@ measurements:
 #   dtype: uint16
 #   nodata: 0
 
-- name: 'B11'
+- name: 'swir_1'
+  aliases: [band_11, B11]
   units: '1'
   dtype: uint16
   nodata: 0
 
-- name: 'B12'
+- name: 'swir_2'
+  aliases: [band_12, B12]
   units: '1'
   dtype: uint16
   nodata: 0
 
-# - name: 'SCL_20m'
-#   units: '1'
-#   dtype: uint8
-#   nodata: 0
-#   flags_definition:
-#     sca:
-#         bits: [0,1,2,3,4,5,6,7]
-#         description: Sen2Cor Scene Classification
-#         values:
-#             1: saturated or defective
-#             2: dark area pixels
-#             3: cloud shadows
-#             4: vegetation
-#             5: bare soils
-#             6: water
-#             7: unclassified
-#             8: cloud medium probability
-#             9: cloud high probability
-#             10: thin cirrus
-#             11: snow or ice
+- name: 'scl'
+  aliases: [mask, qa]
+  units: '1'
+  dtype: uint8
+  nodata: 0
+  flags_definition:
+    sca:
+        bits: [0,1,2,3,4,5,6,7]
+        description: Sen2Cor Scene Classification
+        values:
+            1: saturated or defective
+            2: dark area pixels
+            3: cloud shadows
+            4: vegetation
+            5: bare soils
+            6: water
+            7: unclassified
+            8: cloud medium probability
+            9: cloud high probability
+            10: thin cirrus
+            11: snow or ice

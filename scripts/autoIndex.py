@@ -59,7 +59,7 @@ def index_dataset(index, s3, url, parse_only):
 
 def index_stac(index, item, parse_only):
     logger.info("Parsing {}".format(item))
-    uri = os.path.split(item.assets['B04']['href'])[0]
+    uri = os.path.split(item.assets['B04']['href'])[0] + "/"
     try:
         data = make_stac_metadata_doc(item)
     except Exception as e:
