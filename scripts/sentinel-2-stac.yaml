@@ -1,0 +1,195 @@
+name: S2A_MSIL2A
+description: Sentinel-2A Level 2 COGs
+metadata_type: eo3
+
+metadata:
+    product:
+        name: S2A_MSIL2A
+
+measurements:
+- name: 'B01'
+  aliases: [band_01]
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B02'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B03'
+  aliases: [band_03]
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B04'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B05'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B06'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B07'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B08'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B8A'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B09'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+# - name: 'B10'
+#   units: '1'
+#   dtype: uint16
+#   nodata: 0
+
+- name: 'B11'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B12'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'SCL'
+  units: '1'
+  dtype: uint8
+  nodata: 0
+  flags_definition:
+    sca:
+        bits: [0,1,2,3,4,5,6,7]
+        description: Sen2Cor Scene Classification
+        values:
+            1: saturated or defective
+            2: dark area pixels
+            3: cloud shadows
+            4: vegetation
+            5: bare soils
+            6: water
+            7: unclassified
+            8: cloud medium probability
+            9: cloud high probability
+            10: thin cirrus
+            11: snow or ice
+
+---
+
+name: S2B_MSIL2A
+description: Sentinel-2B Level 2 COGs
+metadata_type: eo3
+
+metadata:
+    product:
+        name: S2B_MSIL2A
+
+measurements:
+- name: 'B01'
+  aliases: [band_01]
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B02'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B03'
+  aliases: [band_03]
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B04'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B05'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B06'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B07'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B08'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B8A'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B09'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+# - name: 'B10'
+#   units: '1'
+#   dtype: uint16
+#   nodata: 0
+
+- name: 'B11'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+- name: 'B12'
+  units: '1'
+  dtype: uint16
+  nodata: 0
+
+# - name: 'SCL_20m'
+#   units: '1'
+#   dtype: uint8
+#   nodata: 0
+#   flags_definition:
+#     sca:
+#         bits: [0,1,2,3,4,5,6,7]
+#         description: Sen2Cor Scene Classification
+#         values:
+#             1: saturated or defective
+#             2: dark area pixels
+#             3: cloud shadows
+#             4: vegetation
+#             5: bare soils
+#             6: water
+#             7: unclassified
+#             8: cloud medium probability
+#             9: cloud high probability
+#             10: thin cirrus
+#             11: snow or ice
