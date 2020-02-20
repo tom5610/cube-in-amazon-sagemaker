@@ -3,7 +3,9 @@ import re
 import uuid
 from multiprocessing import Manager, Process, cpu_count, current_process
 from queue import Empty
+import os
 
+import rasterio
 import boto3
 import click
 import datacube
@@ -12,6 +14,8 @@ from botocore.config import Config
 from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes
 from osgeo import osr
+
+from odc.index import eo3_grid_spatial, odc_uuid
 
 from ruamel.yaml import YAML
 
@@ -41,6 +45,27 @@ bands_ls7 = [('1', 'blue'),
              ('5', 'swir1'),
              ('7', 'swir2'),
              ('QUALITY', 'quality')]
+
+
+# STACproduct lookup
+def _stac_lookup(item):
+    # "sentinel:product_id": "S2A_MSIL2A_20191203T102401_N0213_R065_T30NYN_20191203T121856"
+    product_id = "unknown"
+    processing_level = "unknown"
+    product_type = "unknown"
+
+    if "sentinel:product_id" in item.properties:
+        product_id = item.properties["sentinel:product_id"]
+        product_split = product_id.split("_")
+        if product_split[0] in ["S2A", "S2B"]:
+            # product = "Sentinel-2"
+            if "L2A" in product_split[1]:
+                processing_level = "Level-2"
+            product_type = "{}_{}".format(product_split[0], product_split[1])
+    else:
+        logging.error("Failed to recognise product.")
+
+    return product_id, processing_level, product_type
 
 
 def _parse_value(s):
@@ -77,6 +102,15 @@ def get_geo_ref_points(info):
     }
 
 
+def get_stac_geo_ref_points(bounds):
+    return {
+        'ul': {'x': bounds.left, 'y': bounds.top},
+        'ur': {'x': bounds.right, 'y': bounds.top},
+        'll': {'x': bounds.left, 'y': bounds.bottom},
+        'lr': {'x': bounds.right, 'y': bounds.bottom},
+    }
+
+
 def get_coords(geo_ref_points, spatial_ref):
     t = osr.CoordinateTransformation(spatial_ref, spatial_ref.CloneGeogCS())
 
@@ -106,8 +140,78 @@ def absolutify_paths(doc, bucket_name, obj_key):
         band['path'] = get_s3_url(bucket_name, objt_key + '/' + band['path'])
     return doc
 
-def make_stac_metadata_doc(stac_data, bucket_name, object_key):
-    print("make_stac_metadata_doc: NOT IMPLEMENTED")
+
+def relativise_path(href):
+    return os.path.split(href)[1]
+
+
+def get_stac_bands(item):
+    bands = {}
+
+    # TODO: split out grids per band.
+    for asset_key in item.assets:
+        asset = item.assets[asset_key]
+        if 'data' in asset['roles']:
+            bands[asset_key] = {
+                "path": relativise_path(asset['href']),
+                "grid": "default",
+                "band": 1
+            }
+
+    ignore_bands = ["B10", "AOT", "WVP"]
+    for band in ignore_bands:
+        if band in bands:
+            del bands[band]
+
+    return bands
+
+
+def make_stac_metadata_doc(item):
+
+    # Dodgy lookup
+    product_id, processing_level, product_type = _stac_lookup(item)
+
+    # Geospatial bits
+    dataset = rasterio.open(item.assets['B04']['href'])
+    shape = dataset.shape
+    transform = list(dataset.transform)
+    dataset.close()
+
+    # Make a proper deterministic UUID
+    deterministic_uuid = str(odc_uuid("sentinel2_stac_process", "1.0.0", [product_id]))
+
+    doc = {
+        'id': deterministic_uuid,
+        'crs': "epsg:{}".format(item.properties['proj:epsg']),
+        'geometry': item.properties['proj:geometry'],
+        'grids': {
+            'default': {
+                'shape': shape,
+                'transform': transform
+            }
+        },
+        'format': {'name': 'GeoTiff'},
+        'processing_level': processing_level,
+        'product': {
+            'name': product_type  # This is not right
+        },
+        'product_type': product_type,
+        'label': product_id,
+        'properties': {
+            'datetime': item.properties['datetime'],
+            'eo:gsd': item.properties['eo:gsd'],
+            'eo:instrument': item.properties['instruments'][0],
+            'eo:platform': item.properties['platform'],
+            'odc:file_format': 'GeoTIFF',
+            'odc:region_code': product_id.split('_')[-2],  # Super dodge NEEDS FIXED
+            'odc:processing_time': item.properties['created']
+        },
+        'measurements': get_stac_bands(item),
+        'lineage': {'source_datasets': {}},
+    }
+
+    return dict(**doc,
+                **eo3_grid_spatial(doc))
 
 
 def make_metadata_doc(mtl_data, bucket_name, object_key):

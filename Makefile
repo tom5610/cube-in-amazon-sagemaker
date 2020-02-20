@@ -10,18 +10,23 @@ up:
 initdb:
 	docker-compose exec jupyter datacube -v system init
 
+# 3.0 Add metadata definition
+metadata:
+	docker-compose exec jupyter datacube metadata add \
+		https://raw.githubusercontent.com/digitalearthafrica/config/master/products/eo3.yaml
+
 # 3. Add a product definition for landsat level 1
-add-product-definition:
+product-definition:
 	docker-compose exec jupyter datacube product add \
-		https://raw.githubusercontent.com/opendatacube/datacube-dataset-config/master/products/ls_usgs_level1_scene.yaml
+		/opt/odc/scripts/sentinel-2-stac.yaml
 
 # 3. Index a dataset (just an example, you can change the extents)
 index:
 	# 6.350513, -1.341256 - Ghana, y x
 	docker-compose exec jupyter bash -c \
 		"cd /opt/odc/scripts && python3 ./autoIndex.py \
-			--start_date '2019-01-01' \
-			--end_date '2021-01-01' \
+			--start_date '2019-12-01' \
+			--end_date '2020-12-01' \
 			--extents '-2,-1,6,7'"
 
 # Some extra commands to help in managing things.
@@ -35,8 +40,7 @@ shell:
 
 # Delete everything
 clear:
-	docker-compose stop
-	docker-compose rm -fs
+	docker-compose down
 
 # Update S3 template (this is owned by Digital Earth Australia)
 upload-s3:

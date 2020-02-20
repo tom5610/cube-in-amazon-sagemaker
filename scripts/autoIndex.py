@@ -4,6 +4,7 @@ import logging
 from multiprocessing import Manager, Process, cpu_count, current_process
 from queue import Empty
 from urllib.parse import urlparse
+import os
 
 import boto3
 import click
@@ -11,7 +12,7 @@ import datacube
 from botocore import UNSIGNED
 from botocore.config import Config
 
-from ls_public_bucket import (_parse_group, add_dataset, get_s3_url,
+from ls_public_bucket import (add_dataset, get_s3_url,
                               make_metadata_doc, make_stac_metadata_doc)
 from satsearch import Search
 
@@ -23,14 +24,11 @@ logger = logging.getLogger('odcindexer')
 def stac_search(extent, start_date, end_date):
     """ Convert lat, lon to pathrows """
     logger.info("Querying STAC for area: {} and times: {} - {} (UTC)".format(extent, start_date, end_date))
-    # The original URL
-    url = "https://sat-api.developmentseed.org/stac/search"
-    # The URL for Sentinel-2 testing
-    url = "https://jhj4qxmhwb.execute-api.us-west-2.amazonaws.com/v0/search"
-    srch = Search(
+    # The URL is set in an ENV VAR
+    srch = Search().search(
         bbox=extent,
         datetime='{}T00:00:00Z/{}T23:59:59Z'.format(start_date, end_date),
-        url=url
+        collections=["sentinel-s2-l2a-cogs"],
     )
     try:
         logger.info("Found {} items".format(srch.found()))
@@ -47,7 +45,7 @@ def index_dataset(index, s3, url, parse_only):
     raw_string = raw.decode('utf8')
     logger.info("Parsing {}".format(key))
     try:
-        data = make_stac_metadata_doc(raw_string, bucket_name, key)
+        data = make_metadata_doc(raw_string, bucket_name, key)
     except Exception as e:
         logger.error("Metadata parsing error: {}; {}".format(e.__class__.__name__, e))
         return
@@ -59,24 +57,18 @@ def index_dataset(index, s3, url, parse_only):
         add_dataset(data, uri, index, "verify")
 
 
-def index_stac(index, s3, url, parse_only):
-    logger.info("Downloading {}".format(url))
-    bucket_name, key = parse_s3_url(url)
-    obj = s3.Object(bucket_name, key).get()
-    raw = obj['Body'].read()
-    raw_string = raw.decode('utf8')
-    logger.info("Parsing {}".format(key))
+def index_stac(index, item, parse_only):
+    logger.info("Parsing {}".format(item))
+    uri = os.path.split(item.assets['B04']['href'])[0]
     try:
-        txt_doc = _parse_group(iter(raw_string.split("\n")))['L1_METADATA_FILE']
-        data = make_metadata_doc(txt_doc, bucket_name, key)
+        data = make_stac_metadata_doc(item)
     except Exception as e:
         logger.error("Metadata parsing error: {}; {}".format(e.__class__.__name__, e))
         return
-    uri = get_s3_url(bucket_name, key)
     if parse_only:
         logger.info("Skipping indexing step")
     else:
-        logger.info("Indexing {}".format(key))
+        logger.info("Indexing {}".format(item))
         add_dataset(data, uri, index, "verify")
 
 
@@ -88,7 +80,7 @@ def index_datasets(items, parse_only=False):
         if "MTL" in item.assets:
             index_dataset(idx, s3, item.assets["MTL"]["href"], parse_only)
         elif "info" in item.assets:
-            index_stac(idx, s3, item.assets["info"]["href"], parse_only)
+            index_stac(idx, item, parse_only)
         else:
             logger.info("Item {} does not have an MTL asset (Sentinel2?) - skipping".format(item))
 
@@ -100,11 +92,14 @@ def worker(parse_only, queue):
 
     while True:
         try:
-            url = queue.get(timeout=60)
-            if url == STOP_SIGN:
+            item = queue.get(timeout=60)
+            if item == STOP_SIGN:
                 break
-            logging.info("Processing {} {}".format(url, current_process()))
-            index_dataset(idx, s3, url, parse_only)
+            logging.info("Processing {} {}".format(item, current_process()))
+            if "MTL" in item.assets:
+                index_dataset(idx, s3, item, parse_only)
+            elif "info" in item.assets:
+                index_stac(idx, item, parse_only)
             queue.task_done()
         except Empty:
             break
@@ -112,7 +107,7 @@ def worker(parse_only, queue):
             break
 
 
-def index_datasets_multi(items, parse_only=False):
+def index_datasets_multi(items, parse_only=False, job_type="MTL"):
     manager = Manager()
     queue = manager.Queue()
     worker_count = cpu_count() * 2
@@ -125,9 +120,11 @@ def index_datasets_multi(items, parse_only=False):
 
     for item in items:
         if "MTL" in item.assets:
-            queue.put(item.assets["MTL"]["href"])
+            queue.put(item)
+        elif "info" in item.assets:
+            queue.put(item)
         else:
-            logger.info("Item {} does not have an MTL asset (Sentinel2?) - skipping".format(item))
+            logger.info("Item {} is not recognised - skipping".format(item))
 
     for i in range(worker_count):
         queue.put(STOP_SIGN)
