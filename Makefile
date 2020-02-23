@@ -26,8 +26,8 @@ index:
 	docker-compose exec jupyter bash -c \
 		"cd /opt/odc/scripts && python3 ./autoIndex.py \
 			--start_date '2019-12-01' \
-			--end_date '2020-12-01' \
-			--extents '-2,-1,6,7'"
+			--end_date '2019-12-31' \
+			--extents '-180,180,-60,60'"
 
 # Some extra commands to help in managing things.
 # Rebuild the image
