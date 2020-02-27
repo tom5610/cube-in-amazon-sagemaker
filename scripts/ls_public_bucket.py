@@ -212,7 +212,7 @@ def make_stac_metadata_doc(item):
         'label': product_id,
         'properties': {
             'datetime': item.properties['datetime'].replace("000+00:00", "Z"),
-            'odc:processing_time': item.properties['created'],
+            'odc:processing_datetime': item.properties['created'],
             'eo:cloud_cover': item.properties['eo:cloud_cover'],
             'eo:gsd': item.properties['eo:gsd'],
             'eo:instrument': item.properties['instruments'][0],
@@ -310,17 +310,25 @@ def add_dataset(doc, uri, index, sources_policy):
     logging.info("Indexing %s", uri)
     resolver = Doc2Dataset(index)
     dataset, err = resolver(doc, uri)
-    if err is not None:
-        logging.error("%s", err)
+
+    existing_dataset = index.datasets.get(doc['id'])
+
+    if not existing_dataset:
+        logging.info("Indexing dataset...")
+        if err is not None:
+            logging.error("%s", err)
+        else:
+            try:
+                index.datasets.add(dataset, with_lineage=False)
+            except Exception as e:
+                logging.error("Unhandled exception %s", e)
     else:
+        logging.info("Updating dataset...")
         try:
-            index.datasets.add(dataset, sources_policy=sources_policy)  # Source policy to be checked in sentinel 2 datase types
-        except changes.DocumentMismatchError:
             index.datasets.update(dataset, {tuple(): changes.allow_any})
         except Exception as e:
-            err = e
             logging.error("Unhandled exception %s", e)
-
+    logging.info(f"Dataset {doc['id']} indexed.")
     return dataset, err
 
 

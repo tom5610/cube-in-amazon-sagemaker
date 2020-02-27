@@ -58,12 +58,13 @@ def index_dataset(index, s3, url, parse_only):
 
 
 def index_stac(index, item, parse_only):
-    logger.info("Parsing {}".format(item))
+    logger.info("Parsing {} as STAC".format(item))
     uri = os.path.split(item.assets['B04']['href'])[0] + "/"
     try:
         data = make_stac_metadata_doc(item)
     except Exception as e:
         logger.error("Metadata parsing error: {}; {}".format(e.__class__.__name__, e))
+        logger.error(f"Couldn't handle item: {item.properties}")
         return
     if parse_only:
         logger.info("Skipping indexing step")
