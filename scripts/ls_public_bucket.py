@@ -4,7 +4,6 @@ import uuid
 from multiprocessing import Manager, Process, cpu_count, current_process
 from queue import Empty
 import os
-import json
 
 import rasterio
 import boto3
