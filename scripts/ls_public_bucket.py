@@ -14,6 +14,9 @@ import logging
 import click
 import re
 import boto3
+
+from botocore import UNSIGNED
+from botocore.config import Config
 import datacube
 from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes
@@ -432,7 +435,7 @@ def add_dataset(doc, uri, index, sources_policy):
 def worker(config, bucket_name, prefix, suffix, start_date, end_date, func, unsafe, sources_policy, queue):
     dc=datacube.Datacube(config=config)
     index = dc.index
-    s3 = boto3.resource("s3")
+    s3 = boto3.resource("s3", config=Config(signature_version=UNSIGNED))
     safety = 'safe' if not unsafe else 'unsafe'
 
     while True:
@@ -441,7 +444,7 @@ def worker(config, bucket_name, prefix, suffix, start_date, end_date, func, unsa
             if key == GUARDIAN:
                 break
             logging.info("Processing %s %s", key, current_process())
-            obj = s3.Object(bucket_name, key).get(ResponseCacheControl='no-cache')
+            obj = s3.Object(bucket_name, key).get()
             raw = obj['Body'].read()
             raw_string = raw.decode('utf8')
 
@@ -486,7 +489,7 @@ def iterate_datasets(bucket_name, config, prefix, suffix, start_date, end_date, 
     manager = Manager()
     queue = manager.Queue()
 
-    s3 = boto3.resource('s3')
+    s3 = boto3.resource('s3', config=Config(signature_version=UNSIGNED))
     bucket = s3.Bucket(bucket_name)
     logging.info("Bucket : %s prefix: %s ", bucket_name, str(prefix))
     # safety = 'safe' if not unsafe else 'unsafe'
