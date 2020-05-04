@@ -16,13 +16,12 @@ metadata:
 		https://raw.githubusercontent.com/digitalearthafrica/config/master/products/eo3.yaml
 
 # 3. Add a product definition for landsat level 1
-product-definition:
+product:
 	docker-compose exec jupyter datacube product add \
 		/opt/odc/scripts/sentinel-2-stac.yaml
 
 # 3. Index a dataset (just an example, you can change the extents)
 index:
-	# 6.350513, -1.341256 - Ghana, y x
 	docker-compose exec jupyter bash -c \
 		"cd /opt/odc/scripts && python3 ./autoIndex.py \
 			--start_date '2019-12-01' \
