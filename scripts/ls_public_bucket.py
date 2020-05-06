@@ -5,7 +5,6 @@ from multiprocessing import Manager, Process, cpu_count, current_process
 from queue import Empty
 import os
 
-import rasterio
 import boto3
 import click
 import datacube
@@ -14,6 +13,8 @@ from botocore.config import Config
 from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes
 from osgeo import osr
+
+from odc.index import eo3_grid_spatial, odc_uuid
 
 # Need to check if we're on new gdal for coordinate order
 import osgeo.gdal
@@ -50,7 +51,6 @@ bands_ls7 = [('1', 'blue'),
              ('7', 'swir2'),
              ('QUALITY', 'quality')]
 
-
 bands_s2 = {
     "B01": 'coastal_aerosol',
     "B02": 'blue',
@@ -72,21 +72,24 @@ bands_s2 = {
 def _stac_lookup(item):
     # "sentinel:product_id": "S2A_MSIL2A_20191203T102401_N0213_R065_T30NYN_20191203T121856"
     product_id = "unknown"
-    processing_level = "unknown"
     product_type = "unknown"
+    region_code = "nnTTT"
 
     if "sentinel:product_id" in item.properties:
         product_id = item.properties["sentinel:product_id"]
         product_split = product_id.split("_")
         if product_split[0] in ["S2A", "S2B"]:
             # product = "Sentinel-2"
-            if "L2A" in product_split[1]:
-                processing_level = "Level-2"
             product_type = "{}_{}".format(product_split[0], product_split[1])
+            region_code = "{}{}{}".format(
+                str(item.properties["proj:epsg"])[-2:-1],
+                item.properties["sentinel:latitude_band"],
+                item.properties["sentinel:grid_square"]
+            )
     else:
         logging.error("Failed to recognise product.")
 
-    return product_id, processing_level, product_type
+    return product_id, product_type, region_code
 
 
 def _parse_value(s):
@@ -193,13 +196,11 @@ def get_stac_bands(item):
 def make_stac_metadata_doc(item):
 
     # Dodgy lookup
-    product_id, processing_level, product_type = _stac_lookup(item)
+    product_id, product_type, region_code = _stac_lookup(item)
 
     # Geospatial bits
-    dataset = rasterio.open(item.assets['B04']['href'])
-    shape = dataset.shape
-    transform = list(dataset.transform)
-    dataset.close()
+    shape = item.assets['B04']['proj:shape']
+    transform = item.assets['B04']['proj:transform']
 
     # Make a proper deterministic UUID
     deterministic_uuid = str(odc_uuid("sentinel2_stac_process", "1.0.0", [product_id]))
@@ -208,7 +209,7 @@ def make_stac_metadata_doc(item):
         '$schema': 'https://schemas.opendatacube.org/dataset',
         'id': deterministic_uuid,
         'crs': "epsg:{}".format(item.properties['proj:epsg']),
-        'geometry': item.properties['proj:geometry'],
+        'geometry': item.geometry,
         'grids': {
             'default': {
                 'shape': shape,
@@ -221,13 +222,13 @@ def make_stac_metadata_doc(item):
         'label': product_id,
         'properties': {
             'datetime': item.properties['datetime'].replace("000+00:00", "Z"),
-            'odc:processing_datetime': item.properties['created'],
+            'odc:processing_datetime': item.properties['datetime'].replace("000+00:00", "Z"),
             'eo:cloud_cover': item.properties['eo:cloud_cover'],
-            'eo:gsd': item.properties['eo:gsd'],
+            'eo:gsd': item.properties['gsd'],
             'eo:instrument': item.properties['instruments'][0],
             'eo:platform': item.properties['platform'],
             'odc:file_format': 'GeoTIFF',
-            'odc:region_code': product_id.split('_')[-2]  # Super dodge NEEDS FIXED
+            'odc:region_code': region_code  # Super dodge NEEDS FIXED
         },
         'measurements': get_stac_bands(item),
         'lineage': {}
