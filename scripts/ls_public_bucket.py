@@ -14,6 +14,9 @@ from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes
 from osgeo import osr
 
+from collections import Counter 
+
+
 from odc.index import eo3_grid_spatial, odc_uuid
 
 # Need to check if we're on new gdal for coordinate order
@@ -177,20 +180,55 @@ def relativise_path(href):
 
 def get_stac_bands(item):
     bands = {}
-    ignore_bands = ["B10", "AOT", "WVP"]
 
-    # TODO: split out grids per band.
-    for asset_key in item.assets:
-        asset = item.assets[asset_key]
-        if 'data' in asset['roles']:
-            if asset_key not in ignore_bands:
-                # Rename the band to a human-friendly name
-                bands[bands_s2[asset_key]] = {
-                    "path": relativise_path(asset['href']),
-                    # "grid": "default"
-                }
+    grids = {}
+    counter = Counter()
 
-    return bands
+    assets = item.assets
+
+
+    for band in bands_s2:
+        asset = assets[band]
+        grid = "-".join(map(str, asset['proj:transform']))
+        counter[grid] += 1
+
+        if grid not in grids:
+            grids[grid] = {
+                'shape': asset['proj:shape'],
+                'transform': asset['proj:transform']
+            }
+
+        bands[bands_s2[band]] = {
+            "path": relativise_path(asset['href']),
+            "grid": grid
+        }
+
+    default_grid = counter.most_common(1)[0][0]
+    print(default_grid)
+    out_grids = {}
+
+    grid_count = 2
+    for grid in grids:
+        if grid == default_grid:
+            print(grid)
+            out_grids["default"] = grids[default_grid]
+        else:
+            out_grids[f"grid_{grid_count}"] = grids[grid]
+            grid_count += 1
+
+
+    # # TODO: split out grids per band.
+    # for asset_key in item.assets:
+    #     asset = item.assets[asset_key]
+    #     if 'data' in asset['roles']:
+    #         if asset_key not in ignore_bands:
+    #             # Rename the band to a human-friendly name
+    #             bands[bands_s2[asset_key]] = {
+    #                 "path": relativise_path(asset['href']),
+    #                 # "grid": "default"
+    #             }
+
+    return bands, out_grids
 
 
 def make_stac_metadata_doc(item):
@@ -198,24 +236,18 @@ def make_stac_metadata_doc(item):
     # Dodgy lookup
     product_id, product_type, region_code = _stac_lookup(item)
 
-    # Geospatial bits
-    shape = item.assets['B04']['proj:shape']
-    transform = item.assets['B04']['proj:transform']
-
     # Make a proper deterministic UUID
     deterministic_uuid = str(odc_uuid("sentinel2_stac_process", "1.0.0", [product_id]))
+
+    # Get grids and bands
+    bands, grids = get_stac_bands(item)
 
     doc = {
         '$schema': 'https://schemas.opendatacube.org/dataset',
         'id': deterministic_uuid,
         'crs': "epsg:{}".format(item.properties['proj:epsg']),
         'geometry': item.geometry,
-        'grids': {
-            'default': {
-                'shape': shape,
-                'transform': transform
-            }
-        },
+        'grids': grids,
         'product': {
             'name': product_type.lower()  # This is not right
         },
@@ -230,7 +262,7 @@ def make_stac_metadata_doc(item):
             'odc:file_format': 'GeoTIFF',
             'odc:region_code': region_code  # Super dodge NEEDS FIXED
         },
-        'measurements': get_stac_bands(item),
+        'measurements': bands,
         'lineage': {}
     }
 
