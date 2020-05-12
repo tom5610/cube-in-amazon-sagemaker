@@ -14,7 +14,11 @@ from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes
 from osgeo import osr
 
+from copy import deepcopy
+
 from collections import Counter 
+
+import json
 
 
 from odc.index import eo3_grid_spatial, odc_uuid
@@ -85,7 +89,7 @@ def _stac_lookup(item):
             # product = "Sentinel-2"
             product_type = "{}_{}".format(product_split[0], product_split[1])
             region_code = "{}{}{}".format(
-                str(item.properties["proj:epsg"])[-2:-1],
+                str(item.properties["proj:epsg"])[-2:],
                 item.properties["sentinel:latitude_band"],
                 item.properties["sentinel:grid_square"]
             )
@@ -153,6 +157,30 @@ def get_coords(geo_ref_points, spatial_ref):
 
     return {key: transform(p) for key, p in geo_ref_points.items()}
 
+def geographic_to_projected(geometry, target_srs):
+    spatial_ref = osr.SpatialReference()
+    spatial_ref.ImportFromEPSG(4326)
+
+    target_ref = osr.SpatialReference()
+    target_ref.ImportFromEPSG(target_srs)
+
+    t = osr.CoordinateTransformation(spatial_ref, target_ref)
+
+    def transform(p):
+        # GDAL 3 reverses coordinate order, because... standards
+        if LON_LAT_ORDER:
+            # GDAL 2.0 order
+            x, y, z = t.TransformPoint(p[0], p[1])
+        else:
+            # GDAL 3.0 order
+            y, x, z = t.TransformPoint(p[1], p[0])
+        return [x, y]
+
+    new_geometry = deepcopy(geometry)
+    new_geometry['coordinates'][0] = [transform(p) for p in new_geometry['coordinates'][0]]
+
+    return new_geometry
+
 
 def satellite_ref(sat):
     """
@@ -178,19 +206,17 @@ def relativise_path(href):
     return os.path.split(href)[1]
 
 
-def get_stac_bands(item):
+def get_stac_bands(item, default_grid='g10m'):
     bands = {}
 
     grids = {}
-    counter = Counter()
 
     assets = item.assets
 
-
     for band in bands_s2:
         asset = assets[band]
-        grid = "-".join(map(str, asset['proj:transform']))
-        counter[grid] += 1
+        transform = asset['proj:transform']
+        grid = "g{}m".format(transform[0])
 
         if grid not in grids:
             grids[grid] = {
@@ -198,37 +224,19 @@ def get_stac_bands(item):
                 'transform': asset['proj:transform']
             }
 
-        bands[bands_s2[band]] = {
-            "path": relativise_path(asset['href']),
-            "grid": grid
+        band_info = {
+            'path': relativise_path(asset['href']),
         }
 
-    default_grid = counter.most_common(1)[0][0]
-    print(default_grid)
-    out_grids = {}
+        if grid != default_grid:
+           band_info['grid'] = grid
 
-    grid_count = 2
-    for grid in grids:
-        if grid == default_grid:
-            print(grid)
-            out_grids["default"] = grids[default_grid]
-        else:
-            out_grids[f"grid_{grid_count}"] = grids[grid]
-            grid_count += 1
+        bands[bands_s2[band]] = band_info
 
+    grids['default'] = grids[default_grid]
+    del grids[default_grid]
 
-    # # TODO: split out grids per band.
-    # for asset_key in item.assets:
-    #     asset = item.assets[asset_key]
-    #     if 'data' in asset['roles']:
-    #         if asset_key not in ignore_bands:
-    #             # Rename the band to a human-friendly name
-    #             bands[bands_s2[asset_key]] = {
-    #                 "path": relativise_path(asset['href']),
-    #                 # "grid": "default"
-    #             }
-
-    return bands, out_grids
+    return bands, grids
 
 
 def make_stac_metadata_doc(item):
@@ -246,13 +254,13 @@ def make_stac_metadata_doc(item):
         '$schema': 'https://schemas.opendatacube.org/dataset',
         'id': deterministic_uuid,
         'crs': "epsg:{}".format(item.properties['proj:epsg']),
-        'geometry': item.geometry,
+        'geometry': geographic_to_projected(item.geometry, item.properties['proj:epsg']),
         'grids': grids,
         'product': {
             'name': product_type.lower()  # This is not right
         },
-        'label': product_id,
         'properties': {
+            'label': product_id,
             'datetime': item.properties['datetime'].replace("000+00:00", "Z"),
             'odc:processing_datetime': item.properties['datetime'].replace("000+00:00", "Z"),
             'eo:cloud_cover': item.properties['eo:cloud_cover'],
@@ -260,14 +268,14 @@ def make_stac_metadata_doc(item):
             'eo:instrument': item.properties['instruments'][0],
             'eo:platform': item.properties['platform'],
             'odc:file_format': 'GeoTIFF',
-            'odc:region_code': region_code  # Super dodge NEEDS FIXED
+            'odc:region_code': region_code
         },
         'measurements': bands,
         'lineage': {}
     }
 
-    # with open(f'/opt/odc/data/{item}.json', 'w') as outfile:
-    #     json.dump(doc, outfile, indent=4)
+    with open(f'/opt/odc/data/{item}.json', 'w') as outfile:
+        json.dump(doc, outfile, indent=4)
 
     return dict(**doc,
                 **eo3_grid_spatial(doc))
