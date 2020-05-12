@@ -152,7 +152,8 @@ def parse_s3_url(url):
 @click.option('--end_date', default="2099-12-31", help="End date of the acquisitions to index, in YYYY-MM-DD format (UTC)")
 @click.option('--single_process_only', is_flag=True, help="If true, multi-processing is disabled")
 @click.option('--parse_only', '-p', is_flag=True, help="If true, scan STAC and parse MTL files, but do not index into datacube")
-def index(extents, start_date, end_date, single_process_only, parse_only, write_extents=True):
+@click.option('--write_extents', '-w', is_flag=True, default=True, help="Write out the extents file")
+def index(extents, start_date, end_date, single_process_only, parse_only, write_extents):
     lon_min, lon_max, lat_min, lat_max = map(float, extents.split(','))
 
     if write_extents and not parse_only:
