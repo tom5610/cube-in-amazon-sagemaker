@@ -259,8 +259,8 @@ def make_stac_metadata_doc(item):
         'product': {
             'name': product_type.lower()  # This is not right
         },
+        'label': product_id,
         'properties': {
-            'label': product_id,
             'datetime': item.properties['datetime'].replace("000+00:00", "Z"),
             'odc:processing_datetime': item.properties['datetime'].replace("000+00:00", "Z"),
             'eo:cloud_cover': item.properties['eo:cloud_cover'],
@@ -274,8 +274,8 @@ def make_stac_metadata_doc(item):
         'lineage': {}
     }
 
-    with open(f'/opt/odc/data/{item}.json', 'w') as outfile:
-        json.dump(doc, outfile, indent=4)
+    # with open(f'/opt/odc/data/{item}.json', 'w') as outfile:
+    #     json.dump(doc, outfile, indent=4)
 
     return dict(**doc,
                 **eo3_grid_spatial(doc))
