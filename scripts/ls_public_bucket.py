@@ -177,7 +177,7 @@ def geographic_to_projected(geometry, target_srs):
             x, y, z = t.TransformPoint(lon, lat)
         else:
             # GDAL 3.0 order
-            y, x, z = t.TransformPoint(lat, lon)
+            x, y, z = t.TransformPoint(lat, lon)
 
         return [x, y]
 
