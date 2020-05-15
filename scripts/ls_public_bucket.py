@@ -32,6 +32,9 @@ from ruamel.yaml import YAML
 GUARDIAN = "GUARDIAN_QUEUE_EMPTY"
 AWS_PDS_TXT_SUFFIX = "MTL.txt"
 
+# Need to check if we're on new gdal for coordinate order
+import osgeo.gdal
+from packaging import version
 LON_LAT_ORDER = version.parse(osgeo.gdal.__version__) < version.parse("3.0.0")
 
 
@@ -167,13 +170,15 @@ def geographic_to_projected(geometry, target_srs):
     t = osr.CoordinateTransformation(spatial_ref, target_ref)
 
     def transform(p):
+        lon, lat = p
         # GDAL 3 reverses coordinate order, because... standards
         if LON_LAT_ORDER:
             # GDAL 2.0 order
-            x, y, z = t.TransformPoint(p[0], p[1])
+            x, y, z = t.TransformPoint(lon, lat)
         else:
             # GDAL 3.0 order
-            y, x, z = t.TransformPoint(p[1], p[0])
+            y, x, z = t.TransformPoint(lat, lon)
+
         return [x, y]
 
     new_geometry = deepcopy(geometry)
@@ -274,8 +279,8 @@ def make_stac_metadata_doc(item):
         'lineage': {}
     }
 
-    # with open(f'/opt/odc/data/{item}.json', 'w') as outfile:
-    #     json.dump(doc, outfile, indent=4)
+    with open(f'/opt/odc/data/{item}.json', 'w') as outfile:
+        json.dump(doc, outfile, indent=4)
 
     return dict(**doc,
                 **eo3_grid_spatial(doc))
