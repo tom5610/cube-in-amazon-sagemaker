@@ -1,0 +1,163 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Template to setup Cube-in-Amazon-SageMaker environment for people to do geospatial data analysis or AI/ML training.
+
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - 
+        Label: 
+          default: "Notebook Configuration"
+        Parameters: 
+          - NotebookName
+          - NotebookInstanceType
+          - VolumeSize
+          - CodeRepository
+      - 
+        Label: 
+          default: "Notebook Lifecycle Configuration"
+        Parameters: 
+          - NotebookLifecycleName
+          - NotebookLifecycleOnStart
+
+Parameters:
+
+  NotebookName:
+    Type: String
+    Default: cube-in-sagemaker-notebook
+    Description: Enter the name of the SageMaker notebook instance. 
+
+  VolumeSize:
+    Type: Number
+    Default: 10
+    MinValue: 5
+    MaxValue: 16384
+    ConstraintDescription: Must be an integer between 5 (GB) and 16384 (16 TB).
+    Description: Enter the size of the EBS volume in GB.
+
+  CodeRepository:
+    Type: String
+    Description: Code respository to use with notebook
+
+  NotebookInstanceType:
+    Type: String
+    Default: ml.t2.xlarge
+    Description: Enter the SageMaker notebook instance type. Default is ml.p2.xlarge
+
+  NotebookLifecycleName:
+    Type: String
+    Default: cube-environment-setup
+    Description: Notebook lifecycle name. 
+
+  NotebookLifecycleOnStart:
+    Type: String
+    Default: |
+      #!/bin/bash
+
+      set -e
+
+      # Install required library
+      sudo -u ec2-user -i <<'EOF'
+      # PARAMETERS
+      KERNEL_NAME="cube"
+      PYTHON="3.6"
+      conda create --yes --name "$KERNEL_NAME" python="$PYTHON"
+      source activate "$KERNEL_NAME"
+      
+      # Install packages
+      pip install --upgrade pip
+      pip install sat-search
+      conda install --yes --quiet gdal datacube boto3 packaging ruamel.yaml
+      conda install --yes --quiet "poppler<0.62"
+
+      # Start postgis database
+      POSTGRES_DB=opendatacube
+      POSTGRES_PASSWORD=opendatacubepassword
+      POSTGRES_USER=opendatacube
+      PORT=5432
+      POSTGIS_IMAGE=kartoza/postgis:11.0-2.5
+
+      docker run -d --name postgres \
+        --env POSTGRES_DB=$POSTGRES_DB \
+        --env POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+        --env POSTGRES_USER=$POSTGRES_USER \
+        -p 127.0.0.1:$PORT:5432 \
+        --rm \
+        $POSTGIS_IMAGE 
+
+      # Initialize the GIS database
+      datacube -v system init
+      datacube product add https://raw.githubusercontent.com/opendatacube/datacube-dataset-config/master/products/ls_usgs_level1_scene.yaml
+      cd ~/SageMaker/cube-in-amazon-sagemaker/scripts/
+      ExtentToIndex=146.30,146.83,-43.54,-43.20
+      python3 ./autoIndex.py --extents "$ExtentToIndex"
+
+      source deactivate
+
+      # Configure Jupyter Notebook Kernel 
+      python -m ipykernel install --user --name "$KERNEL_NAME" --display-name "KERNEL_NAME"
+
+      EOF
+
+      # OVERVIEW
+      # This script stops a SageMaker notebook once it's idle for more than 1 hour (default time)
+      # You can change the idle time for stop using the environment variable below.
+      # If you want the notebook the stop only if no browsers are open, remove the --ignore-connections flag
+      #
+      # Note that this script will fail if either condition is not met
+      #   1. Ensure the Notebook Instance has internet connectivity to fetch the example config
+      #   2. Ensure the Notebook Instance execution role permissions to SageMaker:StopNotebookInstance to stop the notebook 
+      #       and SageMaker:DescribeNotebookInstance to describe the notebook.
+      #
+
+      # PARAMETERS
+      IDLE_TIME=3600
+
+      echo "Fetching the autostop script"
+      wget https://raw.githubusercontent.com/aws-samples/amazon-sagemaker-notebook-instance-lifecycle-config-samples/master/scripts/auto-stop-idle/autostop.py
+
+      echo "Starting the SageMaker autostop script in cron"
+
+      (crontab -l 2>/dev/null; echo "5 * * * * /usr/bin/python $PWD/autostop.py --time $IDLE_TIME --ignore-connections") | crontab -
+    Description: Notebook lifecycle name. Default is tfc-training-lifecycle
+
+Resources:
+  # SageMaker Execution Role
+  SageMakerIamRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
+        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        - "arn:aws:iam::aws:policy/service-role/AmazonPersonalizeFullAccess"
+
+  # SageMaker lifecycle
+  NotebookLifecycle:
+    Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
+    Properties: 
+      NotebookInstanceLifecycleConfigName: !Ref NotebookLifecycleName
+      OnStart: 
+        - Content:
+            Fn::Base64: !Ref NotebookLifecycleOnStart
+
+  # SageMaker notebook
+  NotebookInstance:
+    Type: "AWS::SageMaker::NotebookInstance"
+    Properties:
+      InstanceType: !Ref NotebookInstanceType
+      NotebookInstanceName: !Ref NotebookName
+      RoleArn: !GetAtt SageMakerIamRole.Arn
+      VolumeSizeInGB: !Ref VolumeSize
+      DefaultCodeRepository: !Ref CodeRepository
+      LifecycleConfigName: !GetAtt NotebookLifecycle.NotebookInstanceLifecycleConfigName
+ 
