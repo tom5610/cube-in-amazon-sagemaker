@@ -67,8 +67,8 @@ Parameters:
       
       # Install packages
       pip install --upgrade pip
-      pip install sat-search
-      conda install --yes --quiet gdal datacube boto3 packaging ruamel.yaml
+      pip install --quiet psycopg2 datacube sat-search boto3 packaging folium scikit-image click
+      conda install --yes --quiet gdal ruamel.yaml
       conda install --yes --quiet "poppler<0.62"
 
       # Start postgis database
@@ -96,6 +96,7 @@ Parameters:
       source deactivate
 
       # Configure Jupyter Notebook Kernel 
+      pip install --quiet ipykernel
       python -m ipykernel install --user --name "$KERNEL_NAME" --display-name "KERNEL_NAME"
 
       EOF
