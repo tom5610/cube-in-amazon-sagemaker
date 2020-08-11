@@ -38,12 +38,13 @@ Parameters:
 
   CodeRepository:
     Type: String
+    Default: https://github.com/tom5610/cube-in-amazon-sagemaker.git
     Description: Code respository to use with notebook
 
   NotebookInstanceType:
     Type: String
     Default: ml.t2.xlarge
-    Description: Enter the SageMaker notebook instance type. Default is ml.p2.xlarge
+    Description: Enter the SageMaker notebook instance type. 
 
   NotebookLifecycleName:
     Type: String
@@ -66,8 +67,12 @@ Parameters:
       source activate "$KERNEL_NAME"
       
       # Install packages
+      sudo yum update -y
+      # for building psycopg2 while installing packages.
+      sudo yum install -y python-devel postgresql-devel
       pip install --upgrade pip
-      pip install --quiet psycopg2 datacube sat-search boto3 packaging folium scikit-image click
+      pip install sat-search==0.2.2
+      pip install datacube boto3 packaging folium scikit-image click psycopg2
       conda install --yes --quiet gdal ruamel.yaml
       conda install --yes --quiet "poppler<0.62"
 
@@ -87,18 +92,28 @@ Parameters:
         $POSTGIS_IMAGE 
 
       # Initialize the GIS database
+      # @todo Need to download the scripts so that we can run the init and indexing creation.
+      mkdir /tmp/scripts 
+      cd /tmp/scripts 
+      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts//__init__.py
+      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts//autoIndex.py
+      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts//datacube.conf
+      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts//ls_public_bucket.py
+      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/configIndex.txt
+
       datacube -v system init
       datacube product add https://raw.githubusercontent.com/opendatacube/datacube-dataset-config/master/products/ls_usgs_level1_scene.yaml
-      cd ~/SageMaker/cube-in-amazon-sagemaker/scripts/
+      
       ExtentToIndex=146.30,146.83,-43.54,-43.20
       python3 ./autoIndex.py --extents "$ExtentToIndex"
 
-      source deactivate
 
       # Configure Jupyter Notebook Kernel 
       pip install --quiet ipykernel
       python -m ipykernel install --user --name "$KERNEL_NAME" --display-name "KERNEL_NAME"
 
+      source deactivate
+      
       EOF
 
       # OVERVIEW

@@ -132,7 +132,7 @@ def index(extents, start_date, end_date, single_process_only, parse_only, write_
     lon_min, lon_max, lat_min, lat_max = map(float, extents.split(','))
 
     if write_extents and not parse_only:
-        with open('/opt/odc/data/configIndex.txt', 'w') as outfile:
+        with open('./configIndex.txt', 'w') as outfile:
             json.dump({'extent': [lon_min, lon_max, lat_min, lat_max]}, outfile)
 
     srch = stac_search([lon_min, lat_min, lon_max, lat_max], start_date, end_date)
