@@ -12,18 +12,20 @@ services:
     restart: always
   
   jupyter:
-    build: .
+    image: geoscienceaustralia/sandbox
     environment:
       - DB_HOSTNAME=postgres
       - DB_USERNAME=opendatacube
       - DB_PASSWORD=opendatacubepassword
       - DB_DATABASE=opendatacube
       - AWS_NO_SIGN_REQUEST=true
+      - AWS_DEFAULT_REGION=ap-southeast-2
     ports:
       - "80:8888"
     volumes:
-      - ./scripts:/opt/odc/scripts
-      - ./data:/opt/odc/data
-      - ./notebooks:/notebooks
+      - ./scripts:/scripts
+      - ./notebooks:/home/jovyan
+    depends_on:
+      - postgres
     restart: always
     command: jupyter notebook --allow-root --ip="0.0.0.0" --NotebookApp.token='secretpassword'

@@ -6,22 +6,44 @@
 up:
 	docker-compose up
 
+# Delete everything
+down:
+	docker-compose down
+
 # 2. Prepare the database
 initdb:
-	docker-compose exec jupyter datacube -v system init
+	docker-compose exec jupyter \
+		datacube -v system init
 
-# 3. Add a product definition for landsat level 1
+# 3.a Add a metadata definition for Sentinel-2
+metadata:
+	docker-compose exec jupyter \
+		datacube metadata add https://raw.githubusercontent.com/opendatacube/datacube-alchemist/local-dev-env/metadata.eo_plus.yaml
+
+
+# 3.b Add a product definition for Sentinel-2
 product:
-	docker-compose exec jupyter datacube product add \
-		https://raw.githubusercontent.com/opendatacube/datacube-dataset-config/master/products/ls_usgs_level1_scene.yaml
+	docker-compose exec jupyter \
+		datacube product add https://raw.githubusercontent.com/GeoscienceAustralia/dea-config/master/products/ga_s2_ard_nbar/ga_s2_ard_nbar_granule.yaml
 
-# 3. Index a dataset (just an example, you can change the extents)
+# 4. Index data
+# Todo: write something that indexes off this: https://explorer.sandbox.dea.ga.gov.au/stac/search?product=ga_s2a_ard_nbar_granule&limit=100&bbox=[140,-40,150,-34]
 index:
+	docker-compose exec jupyter \
+		bash -c "gunzip -c < /scripts/vic-scenes.tar.gz | dc-index-from-tar"
+
+# Careful, this takes a very long time.
+find-dataset-documents:
+	docker-compose exec jupyter \
+		bash -c \
+			"s3-find s3://dea-public-data/L2/sentinel-2-nbar/S2MSIARD_NBAR/**/**/ARD-METADATA.yaml\
+			 > /scripts/s-2-all-scenes.txt | gzip -c /scripts/s-2-all-scenes.txt | /scripts/s-2-all-scenes.txt.gz"
+
+get-dataset-documents:
 	docker-compose exec jupyter bash -c \
-		"cd /opt/odc/scripts && python3 ./autoIndex.py \
-			--start_date '2019-01-01' \
-			--end_date '2020-01-01' \
-			--extents '146.30,146.83,-43.54,-43.20'"
+		"gunzip -c /scripts/s-2-all-scenes.txt.gz |\
+		grep -f /scripts/vic-tiles.txt |\
+		s3-to-tar --no-sign-request | gzip -c > /scripts/vic-scenes.tar.gz"
 
 # Some extra commands to help in managing things.
 # Rebuild the image
@@ -32,29 +54,16 @@ build:
 shell:
 	docker-compose exec jupyter bash
 
-# Delete everything
-clear:
-	docker-compose stop
-	docker-compose rm -fs
-
 # Update S3 template (this is owned by Digital Earth Australia)
 upload-s3:
-	aws s3 cp cube-in-a-box-cloudformation.yml s3://opendatacube-cube-in-a-box/ --acl public-read
+	aws s3 cp cube-in-a-box-dea-cloudformation.yml s3://opendatacube-cube-in-a-box/ --acl public-read
 
 # This section can be used to deploy onto CloudFormation instead of the 'magic link'
 create-infra:
 	aws cloudformation create-stack \
 		--region ap-southeast-2 \
 		--stack-name odc-test \
-		--template-body file://opendatacube-test.yml \
-		--parameter file://parameters.json \
-		--tags Key=Name,Value=OpenDataCube \
-		--capabilities CAPABILITY_NAMED_IAM
-
-update-infra:
-	aws cloudformation update-stack \
-		--stack-name odc-test \
-		--template-body file://opendatacube-test.yml \
+		--template-body file://cube-in-a-box-dea-cloudformation.yml \
 		--parameter file://parameters.json \
 		--tags Key=Name,Value=OpenDataCube \
 		--capabilities CAPABILITY_NAMED_IAM

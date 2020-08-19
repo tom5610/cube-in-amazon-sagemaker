@@ -38,7 +38,7 @@ Parameters:
 
   CodeRepository:
     Type: String
-    Default: https://github.com/tom5610/cube-in-amazon-sagemaker.git
+    Default: https://github.com/opendatacube/cube-in-a-box-dea.git
     Description: Code respository to use with notebook
 
   NotebookInstanceType:
@@ -48,8 +48,85 @@ Parameters:
 
   NotebookLifecycleName:
     Type: String
-    Default: cube-environment-setup
+    Default: opendatacube-lifecycle
     Description: Notebook lifecycle name. 
+  
+  NotebookLifecycleOnCreate:
+    Type: String
+    Default: |
+      #!/bin/bash
+
+      set -e
+
+      # Install required library
+      sudo -u ec2-user -i <<'EOF'
+
+      ODC_DIR=/home/ec2-user/SageMaker/odc-env
+
+      ####################################
+      # Configure Conda Kernel environment
+      ####################################
+      WORKING_DIR=$ODC_DIR/custom-miniconda
+      KERNEL_NAME="opendatacube"
+      PYTHON="3.6"
+
+      mkdir -p "$WORKING_DIR"
+
+      # Install Miniconda
+      wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O "$WORKING_DIR/miniconda.sh"
+      bash "$WORKING_DIR/miniconda.sh" -b -u -p "$WORKING_DIR/miniconda"
+      rm -rf "$WORKING_DIR/miniconda.sh"
+      
+      # Create a custom conda environment
+      source "$WORKING_DIR/miniconda/bin/activate"
+      conda create --yes --name "$KERNEL_NAME" python="$PYTHON"
+
+      # Install packages.
+      conda activate "$KERNEL_NAME"
+      pip install --upgrade pip
+      pip install sat-search boto3 packaging folium scikit-image click
+      pip install --quiet ipykernel
+      conda install --yes --quiet gdal
+      conda install --yes --quiet "poppler<0.62"
+      conda install --yes --quiet ruamel.yaml
+      pip install datacube
+
+      ####################################
+      # Create PostGIS data folder
+      ####################################
+      POSTGIS_DIR="$ODC_DIR/postgis"
+
+      mkdir -p $POSTGIS_DIR
+
+      POSTGRES_DB=opendatacube
+      POSTGRES_PASSWORD=opendatacubepassword
+      POSTGRES_USER=opendatacube
+      PORT=5432
+      POSTGIS_IMAGE=kartoza/postgis:11.0-2.5
+      docker run -d --name postgis \
+      --env POSTGRES_DB=$POSTGRES_DB \
+      --env POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+      --env POSTGRES_USER=$POSTGRES_USER \
+      -p $PORT:5432 \
+      -v $POSTGIS_DIR:/var/lib/postgresql \
+      --rm \
+      $POSTGIS_IMAGE
+
+      # Initialize PostGIS
+      # Config datacube DB connection
+      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts/datacube.conf
+      sudo cp datacube.conf /etc/datacube.conf
+      datacube -v system init
+      datacube metadata add https://raw.githubusercontent.com/opendatacube/datacube-alchemist/local-dev-env/metadata.eo_plus.yaml
+      datacube product add https://raw.githubusercontent.com/GeoscienceAustralia/dea-config/master/products/ga_s2_ard_nbar/ga_s2_ard_nbar_granule.yaml
+
+      # Stop PostGIS
+      docker stop $(docker ps -aq)
+
+      conda deactivate 
+      source deactivate
+
+      EOF
 
   NotebookLifecycleOnStart:
     Type: String
@@ -60,21 +137,12 @@ Parameters:
 
       # Install required library
       sudo -u ec2-user -i <<'EOF'
-      # PARAMETERS
-      KERNEL_NAME="cube"
-      PYTHON="3.6"
-      conda create --yes --name "$KERNEL_NAME" python="$PYTHON"
-      source activate "$KERNEL_NAME"
       
-      # Install packages
-      sudo yum update -y
-      # for building psycopg2 while installing packages.
-      sudo yum install -y python-devel postgresql-devel
-      pip install --upgrade pip
-      pip install sat-search
-      pip install datacube boto3 packaging folium scikit-image click
-      conda install --yes --quiet gdal ruamel.yaml
-      conda install --yes --quiet "poppler<0.62"
+      ODC_DIR=/home/ec2-user/SageMaker/odc-env
+      POSTGIS_DIR="$ODC_DIR/postgis"
+      WORKING_DIR=$ODC_DIR/custom-miniconda
+      KERNEL_NAME="opendatacube"
+      PYTHON="3.6"
 
       # Start postgis database
       POSTGRES_DB=opendatacube
@@ -83,43 +151,27 @@ Parameters:
       PORT=5432
       POSTGIS_IMAGE=kartoza/postgis:11.0-2.5
 
-      docker run -d --name postgres \
-        --env POSTGRES_DB=$POSTGRES_DB \
-        --env POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
-        --env POSTGRES_USER=$POSTGRES_USER \
-        -p 127.0.0.1:$PORT:5432 \
-        --rm \
-        $POSTGIS_IMAGE 
-
-      # Initialize the GIS database
-      echo "Initialize the GIS database"
-      ls -l ~/SageMaker
-      ls -l ~/SageMaker/cube-in-amazon-sagemaker
-      # @todo Need to download the scripts so that we can run the init and indexing creation.
-      mkdir /tmp/scripts 
-      cd /tmp/scripts 
-      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts/__init__.py
-      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts/autoIndex.py
+      docker run -d --name postgis \
+      --env POSTGRES_DB=$POSTGRES_DB \
+      --env POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+      --env POSTGRES_USER=$POSTGRES_USER \
+      -p $PORT:5432 \
+      -v $POSTGIS_DIR:/var/lib/postgresql \
+      --rm \
+      $POSTGIS_IMAGE
+    
+      # Config datacube DB connection
       wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts/datacube.conf
-      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts/ls_public_bucket.py
-      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/configIndex.txt
-
-      echo "place datacube.conf in /etc"
       sudo cp datacube.conf /etc/datacube.conf
 
-      echo "display the download files"
-      ls -la
-      datacube -v system init
-      datacube product add https://raw.githubusercontent.com/opendatacube/datacube-dataset-config/master/products/ls_usgs_level1_scene.yaml
-      
-      ExtentToIndex=146.30,146.83,-43.54,-43.20
-      python3 ./autoIndex.py --extents "$ExtentToIndex"
-
+      # 
+      source "$WORKING_DIR/miniconda/bin/activate"
+      conda activate "$KERNEL_NAME"
 
       # Configure Jupyter Notebook Kernel 
-      pip install --quiet ipykernel
       python -m ipykernel install --user --name "$KERNEL_NAME" --display-name "KERNEL_NAME"
 
+      conda deactivate 
       source deactivate
       
       EOF
@@ -144,7 +196,7 @@ Parameters:
       echo "Starting the SageMaker autostop script in cron"
 
       (crontab -l 2>/dev/null; echo "5 * * * * /usr/bin/python $PWD/autostop.py --time $IDLE_TIME --ignore-connections") | crontab -
-    Description: Notebook lifecycle name. Default is tfc-training-lifecycle
+    Description: Notebook lifecycle name. 
 
 Resources:
   # SageMaker Execution Role
@@ -170,6 +222,9 @@ Resources:
     Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
     Properties: 
       NotebookInstanceLifecycleConfigName: !Ref NotebookLifecycleName
+      OnCreate:
+        - Content:
+            Fn::Base64: !Ref NotebookLifecycleOnCreate
       OnStart: 
         - Content:
             Fn::Base64: !Ref NotebookLifecycleOnStart
