@@ -114,7 +114,7 @@ Parameters:
 
       # Initialize PostGIS
       # Config datacube DB connection
-      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts/datacube.conf
+      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/datacube.conf
       sudo cp datacube.conf /etc/datacube.conf
       datacube -v system init
       datacube metadata add https://raw.githubusercontent.com/opendatacube/datacube-alchemist/local-dev-env/metadata.eo_plus.yaml
@@ -161,7 +161,7 @@ Parameters:
       $POSTGIS_IMAGE
     
       # Config datacube DB connection
-      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/scripts/datacube.conf
+      wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/datacube.conf
       sudo cp datacube.conf /etc/datacube.conf
 
       # 
@@ -169,7 +169,7 @@ Parameters:
       conda activate "$KERNEL_NAME"
 
       # Configure Jupyter Notebook Kernel 
-      python -m ipykernel install --user --name "$KERNEL_NAME" --display-name "KERNEL_NAME"
+      python -m ipykernel install --user --name "$KERNEL_NAME" --display-name "$KERNEL_NAME"
 
       conda deactivate 
       source deactivate
