@@ -38,7 +38,7 @@ Parameters:
 
   CodeRepository:
     Type: String
-    Default: https://github.com/opendatacube/cube-in-a-box.git
+    Default: https://github.com/opendatacube/cube-in-a-box-dea.git
     Description: Code respository to use with notebook
 
   NotebookInstanceType:
@@ -54,9 +54,9 @@ Parameters:
   NotebookLifecycleOnCreate:
     Type: String
     Default: |
-      #!/bin/bash 
+      #!/bin/bash
 
-      set -e -v
+      set -e
 
       # Install required library
       sudo -u ec2-user -i <<'EOF'
@@ -69,7 +69,6 @@ Parameters:
       WORKING_DIR=$ODC_DIR/custom-miniconda
       KERNEL_NAME="opendatacube"
       PYTHON="3.6"
-      ExtentToIndex="146.30,146.83,-43.54,-43.20"
 
       mkdir -p "$WORKING_DIR"
 
@@ -110,21 +109,18 @@ Parameters:
       --rm \
       $POSTGIS_IMAGE
 
-      # Prepare cube-in-a-box environment variables.
-      wget https://github.com/crc-si/cube-in-a-box/archive/master.zip -O /tmp/archive.zip
+      # Initialize PostGIS
+      wget https://github.com/opendatacube/cube-in-a-box-dea/archive/main.zip -O /tmp/archive.zip
       unzip /tmp/archive.zip
-      sudo mv cube-in-a-box-master /opt/odc
       
       # Config datacube DB connection
       wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/datacube.conf -O /tmp/datacube.conf
       sudo cp /tmp/datacube.conf /etc/datacube.conf
-
-      # Initialize PostGIS
-      # Sleep 10s so that PostGIS has more time to start
-      sleep 10
       datacube -v system init
       datacube product add https://raw.githubusercontent.com/opendatacube/datacube-dataset-config/master/products/ls_usgs_level1_scene.yaml
-      bash -c "cd /opt/odc/scripts && python3 ./autoIndex.py --extents ${ExtentToIndex}"
+      datacube metadata add https://raw.githubusercontent.com/opendatacube/datacube-alchemist/local-dev-env/metadata.eo_plus.yaml
+      datacube product add https://raw.githubusercontent.com/GeoscienceAustralia/dea-config/master/products/ga_s2_ard_nbar/ga_s2_ard_nbar_granule.yaml
+      bash -c "gunzip -c < /tmp/cube-in-a-box-dea-main/scripts/vic-scenes.tar.gz | dc-index-from-tar"
 
       # Stop PostGIS
       docker stop $(docker ps -aq)
@@ -139,7 +135,7 @@ Parameters:
     Default: |
       #!/bin/bash
 
-      set -e -v
+      set -e
 
       # Install required library
       sudo -u ec2-user -i <<'EOF'
@@ -149,7 +145,6 @@ Parameters:
       WORKING_DIR=$ODC_DIR/custom-miniconda
       KERNEL_NAME="opendatacube"
       PYTHON="3.6"
-      ExtentToIndex="146.30,146.83,-43.54,-43.20"
 
       # Start postgis database
       POSTGRES_DB=opendatacube
@@ -171,14 +166,7 @@ Parameters:
       wget https://raw.githubusercontent.com/tom5610/cube-in-amazon-sagemaker/master/datacube.conf
       sudo cp datacube.conf /etc/datacube.conf
 
-      # Prepare configIndex.txt for old cube-in-a-box notebook environment. 
-      CONFIG_INDEX_FOLDER=/opt/odc/data
-      [ ! -d "$CONFIG_INDEX_FOLDER" ] && sudo mkdir -p $CONFIG_INDEX_FOLDER 
-      CONFIG_INDEX_FILE=$CONFIG_INDEX_FOLDER/configIndex.txt
-      [ ! -f "$CONFIG_INDEX_FILE" ] && echo "{\"extent\": [$ExtentToIndex]}" | sudo tee $CONFIG_INDEX_FILE
-      
-      echo "{\"extent\": [$ExtentToIndex]}" | sudo tee $CONFIG_INDEX_FILE
-
+      # 
       source "$WORKING_DIR/miniconda/bin/activate"
       conda activate "$KERNEL_NAME"
 
